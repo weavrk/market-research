@@ -7,6 +7,7 @@ requests==2.31.0
 geopy==2.4.0
 numpy>=1.24.0
 pgeocode==0.4.0
+gunicorn==21.2.0
 
 google-cloud-bigquery==3.25.0
 google-auth==2.35.0

@@ -31,9 +31,13 @@ GITHUB_BRANCH = os.getenv('GITHUB_BRANCH', 'main')
 # Files and directories to deploy
 DEPLOY_FILES = [
     'app.py',
+    'index.py',  # GoDaddy WSGI entry point
+    '.htaccess',  # Apache configuration
+    'test_simple.py',  # Diagnostic test file
     'requirements.txt',
     'credentials.md',
     'BILLING_SETUP.md',
+    'GODADDY_SETUP.md',  # Setup instructions
     'check_api_usage.py',
     'all_cities.txt',
 ]

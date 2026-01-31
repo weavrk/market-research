@@ -13,14 +13,20 @@ import uuid
 import re
 import pgeocode
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (silently fail if .env doesn't exist)
+try:
+    load_dotenv()
+except Exception:
+    pass  # Continue without .env file
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # Change this in production
+app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here-change-in-production')
 
 # Configure application root for subdirectory deployment
 app.config['APPLICATION_ROOT'] = '/hrefs/market-research'
+
+# Disable strict slashes to handle URL variations
+app.url_map.strict_slashes = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
