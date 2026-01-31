@@ -49,8 +49,10 @@ except ImportError as e:
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here-change-in-production')
 
-# Configure application root for subdirectory deployment
-app.config['APPLICATION_ROOT'] = '/hrefs/market-research'
+# Configure application root
+# For subdomain: use '' (empty string)
+# For subdirectory: use '/hrefs/market-research'
+app.config['APPLICATION_ROOT'] = ''  # Change to '/hrefs/market-research' if using subdirectory
 
 # Disable strict slashes to handle URL variations
 app.url_map.strict_slashes = False
