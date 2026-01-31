@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Search Results - Market Expansion{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-search"></i> Search Results</h2>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> New Search
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Summary -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Search Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Retailer:</strong> {{ retailer_name }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Location:</strong> {{ location }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Radius:</strong> {{ (radius / 1000) | round(1) }} km
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Distance Threshold:</strong> {{ distance_threshold }} miles
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-primary">{{ results.summary.total_google_stores }}</h3>
+                    <p class="mb-0">Google Stores Found</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-success">{{ results.summary.matches_found }}</h3>
+                    <p class="mb-0">Matches Found</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-warning">{{ results.summary.unmatched_google }}</h3>
+                    <p class="mb-0">Unmatched Google</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h3 class="text-danger">{{ results.summary.unmatched_csv }}</h3>
+                    <p class="mb-0">Unmatched CSV</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Matches Section -->
+    {% if results.matches %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-check-circle"></i> Matched Stores ({{ results.matches|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Store Name</th>
+                                    <th style="width: 35%;">Address</th>
+                                    <th style="width: 15%;">Phone</th>
+                                    <th style="width: 8%;">Rating</th>
+                                    <th style="width: 8%;">Distance</th>
+                                    <th style="width: 10%;">Match Type</th>
+                                    <th style="width: 12%;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for match in results.matches %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ match.google_store.name }}</strong>
+                                        {% if match.google_store.website %}
+                                        <br><small><a href="{{ match.google_store.website }}" target="_blank" class="text-decoration-none">
+                                            <i class="fas fa-external-link-alt"></i> Website
+                                        </a></small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ match.google_store.formatted_address or match.google_store.address }}
+                                    </td>
+                                    <td>{{ match.google_store.phone_number or 'N/A' }}</td>
+                                    <td>
+                                        {% if match.google_store.rating %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-star"></i> {{ match.google_store.rating }}
+                                        </span>
+                                        <br><small class="text-muted">({{ match.google_store.user_ratings_total }} reviews)</small>
+                                        {% else %}
+                                        <span class="text-muted">No rating</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if match.distance > 0 %}
+                                        <span class="badge bg-info">{{ match.distance | round(2) }} miles</span>
+                                        {% else %}
+                                        <span class="badge bg-success">Name match</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ 'primary' if match.match_type == 'location' else 'secondary' }}">
+                                            {{ match.match_type.title() }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="showStoreDetails('{{ loop.index0 }}')">
+                                            <i class="fas fa-eye"></i> Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Unmatched Google Stores -->
+    {% if results.unmatched_google %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> Google Stores Not in CSV ({{ results.unmatched_google|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Store Name</th>
+                                    <th style="width: 40%;">Address</th>
+                                    <th style="width: 20%;">Phone</th>
+                                    <th style="width: 8%;">Rating</th>
+                                    <th style="width: 12%;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for store in results.unmatched_google %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ store.name }}</strong>
+                                        {% if store.website %}
+                                        <br><small><a href="{{ store.website }}" target="_blank" class="text-decoration-none">
+                                            <i class="fas fa-external-link-alt"></i> Website
+                                        </a></small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ store.formatted_address or store.address }}</td>
+                                    <td>{{ store.phone_number or 'N/A' }}</td>
+                                    <td>
+                                        {% if store.rating %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-star"></i> {{ store.rating }}
+                                        </span>
+                                        <br><small class="text-muted">({{ store.user_ratings_total }} reviews)</small>
+                                        {% else %}
+                                        <span class="text-muted">No rating</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="showStoreDetails('unmatched_google_{{ loop.index0 }}')">
+                                            <i class="fas fa-eye"></i> Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Unmatched CSV Stores -->
+    {% if results.unmatched_csv %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-times-circle"></i> CSV Stores Not Found on Google ({{ results.unmatched_csv|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">Store Name</th>
+                                    <th style="width: 50%;">Address</th>
+                                    <th style="width: 20%;">Other Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for store in results.unmatched_csv %}
+                                <tr>
+                                    <td><strong>{{ store.get('name', store.get('store_name', 'N/A')) }}</strong></td>
+                                    <td>{{ store.get('address', 'N/A') }}</td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {% for key, value in store.items() %}
+                                                {% if key not in ['name', 'store_name', 'address'] %}
+                                                    <strong>{{ key }}:</strong> {{ value }}<br>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Export Options -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-download"></i> Export Results</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <button class="btn btn-sm btn-outline-dark w-100" onclick="exportToCSV('matches')">
+                                <i class="fas fa-download"></i> Export CSV
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-sm btn-outline-dark w-100" onclick="exportToCSV('unmatched_google')">
+                                <i class="fas fa-download"></i> Export CSV
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-sm btn-outline-dark w-100" onclick="exportToCSV('unmatched_csv')">
+                                <i class="fas fa-download"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Store Details Modal -->
+<div class="modal fade" id="storeDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Store Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="storeDetailsContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const resultsData = {{ results | tojson }};
+
+    function showStoreDetails(storeIndex) {
+        let store;
+        let title;
+        
+        if (storeIndex.startsWith('unmatched_google_')) {
+            const index = parseInt(storeIndex.replace('unmatched_google_', ''));
+            store = resultsData.unmatched_google[index];
+            title = 'Google Store Details';
+        } else {
+            const index = parseInt(storeIndex);
+            store = resultsData.matches[index].google_store;
+            title = 'Matched Store Details';
+        }
+        
+        const content = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6><i class="fas fa-building"></i> Store Information</h6>
+                    <p><strong>Name:</strong> ${store.name}</p>
+                    <p><strong>Address:</strong> ${store.formatted_address || store.address}</p>
+                    <p><strong>Phone:</strong> ${store.phone_number || 'N/A'}</p>
+                    ${store.website ? `<p><strong>Website:</strong> <a href="${store.website}" target="_blank">${store.website}</a></p>` : ''}
+                </div>
+                <div class="col-md-6">
+                    <h6><i class="fas fa-star"></i> Ratings & Reviews</h6>
+                    <p><strong>Rating:</strong> ${store.rating ? `${store.rating}/5 (${store.user_ratings_total} reviews)` : 'No rating available'}</p>
+                    <p><strong>Business Status:</strong> <span class="badge bg-${store.business_status === 'OPERATIONAL' ? 'success' : 'warning'}">${store.business_status}</span></p>
+                    ${store.price_level ? `<p><strong>Price Level:</strong> ${'$'.repeat(store.price_level)}</p>` : ''}
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6><i class="fas fa-map-marker-alt"></i> Location</h6>
+                    <p><strong>Coordinates:</strong> ${store.latitude}, ${store.longitude}</p>
+                    <div class="d-grid">
+                        <a href="https://www.google.com/maps?q=${store.latitude},${store.longitude}" target="_blank" class="btn btn-primary">
+                            <i class="fas fa-map"></i> View on Google Maps
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('storeDetailsContent').innerHTML = content;
+        document.querySelector('#storeDetailsModal .modal-title').textContent = title;
+        
+        const modal = new bootstrap.Modal(document.getElementById('storeDetailsModal'));
+        modal.show();
+    }
+
+    function exportToCSV(type) {
+        let data = [];
+        let filename = '';
+        
+        switch(type) {
+            case 'matches':
+                data = resultsData.matches.map(match => ({
+                    'Store Name': match.google_store.name,
+                    'Address': match.google_store.formatted_address || match.google_store.address,
+                    'Phone': match.google_store.phone_number || '',
+                    'Rating': match.google_store.rating || '',
+                    'Reviews': match.google_store.user_ratings_total || '',
+                    'Website': match.google_store.website || '',
+                    'Distance': match.distance,
+                    'Match Type': match.match_type
+                }));
+                filename = 'matched_stores.csv';
+                break;
+            case 'unmatched_google':
+                data = resultsData.unmatched_google.map(store => ({
+                    'Store Name': store.name,
+                    'Address': store.formatted_address || store.address,
+                    'Phone': store.phone_number || '',
+                    'Rating': store.rating || '',
+                    'Reviews': store.user_ratings_total || '',
+                    'Website': store.website || ''
+                }));
+                filename = 'unmatched_google_stores.csv';
+                break;
+            case 'unmatched_csv':
+                data = resultsData.unmatched_csv;
+                filename = 'unmatched_csv_stores.csv';
+                break;
+        }
+        
+        if (data.length === 0) {
+            alert('No data to export for this category.');
+            return;
+        }
+        
+        // Convert to CSV
+        const headers = Object.keys(data[0]);
+        const csvContent = [
+            headers.join(','),
+            ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+        ].join('\n');
+        
+        // Download file
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+</script>
+{% endblock %}

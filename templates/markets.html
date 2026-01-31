@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Live Markets{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-mail-bulk"></i> Live Markets</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-7">
+                        <label for="csv_file" class="form-label">Upload Markets CSV</label>
+                        <input type="file" class="form-control" id="csv_file" name="csv_file" accept=".csv" required>
+                        <div class="form-text">Provide a CSV with city names in one column, formatted as "City, ST" (e.g., "Tampa, FL"). We'll look up all ZIP codes for each city.</div>
+                    </div>
+                    <div class="col-md-3 text-md-end">
+                        <button type="submit" class="btn btn-dark">
+                            <i class="fas fa-upload"></i> Upload
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <div id="uploadProgress" class="progress mt-3" style="height: 8px; display: none;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+            </div>
+            <div id="uploadHint" class="form-text mt-2" style="display:none;">Processing cities and looking up ZIP codes…</div>
+        </div>
+    </div>
+
+    {% if rows %}
+    <!-- Map Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-map"></i> Markets Map</h6>
+        </div>
+        <div class="card-body">
+            <div id="marketsMap" style="height: 400px; width: 100%;"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h6 class="mb-0"><i class="fas fa-table"></i> Preview ({{ rows|length }} rows)</h6>
+                <small class="text-muted">
+                    <i class="fas fa-database"></i> Data loaded from persistent storage
+                </small>
+            </div>
+            <div>
+                <button class="btn btn-outline-dark btn-sm me-2" onclick="exportMarketsToCSV()">
+                    <i class="fas fa-download"></i> Export CSV
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="clearAllMarkets()">
+                    <i class="fas fa-trash"></i> Clear All
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>City</th>
+                            <th>State</th>
+                            <th>Zip Codes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>{{ row['City'] }}</td>
+                            <td>{{ row['State'] }}</td>
+                            <td>{{ row['Zip Codes'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% block scripts %}
+<!-- Load Google Maps JavaScript API -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ api_key }}&libraries=geometry"></script>
+<script>
+    (function() {
+        const form = document.querySelector('form[enctype="multipart/form-data"]');
+        if (!form) return;
+        form.addEventListener('submit', function() {
+            const prog = document.getElementById('uploadProgress');
+            const hint = document.getElementById('uploadHint');
+            if (prog) prog.style.display = 'block';
+            if (hint) hint.style.display = 'block';
+        });
+    })();
+
+    // Initialize map when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        const marketsData = {{ rows|tojson }};
+        if (marketsData && marketsData.length > 0) {
+            // Wait a bit for Google Maps to load
+            setTimeout(function() {
+                if (typeof google !== 'undefined' && google.maps) {
+                    initMarketsMap(marketsData);
+                } else {
+                    console.error('Google Maps API not loaded');
+                }
+            }, 1000);
+        }
+    });
+
+    function initMarketsMap(marketsData) {
+        console.log('Initializing map with data:', marketsData.length, 'markets');
+        
+        const mapContainer = document.getElementById('marketsMap');
+        if (!mapContainer) {
+            console.error('Map container not found');
+            return;
+        }
+        
+        // Initialize the map centered on the US
+        const map = new google.maps.Map(mapContainer, {
+            zoom: 4,
+            center: { lat: 39.8283, lng: -98.5795 }, // Center of US
+            mapTypeId: 'roadmap'
+        });
+        
+        console.log('Map initialized successfully');
+
+        // Create markers for each market
+        const markers = [];
+        const bounds = new google.maps.LatLngBounds();
+
+        marketsData.forEach((market, index) => {
+            // Create a geocoder request for each city
+            const geocoder = new google.maps.Geocoder();
+            const address = `${market.City}, ${market.State}`;
+            
+            geocoder.geocode({ address: address }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    const location = results[0].geometry.location;
+                    
+                    // Create marker
+                    const marker = new google.maps.Marker({
+                        position: location,
+                        map: map,
+                        title: `${market.City}, ${market.State}`
+                    });
+
+                    // Create info window
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `
+                            <div>
+                                <h6>${market.City}, ${market.State}</h6>
+                                <p><strong>Zip Codes:</strong> ${market['Zip Codes']}</p>
+                            </div>
+                        `
+                    });
+
+                    // Add click listener
+                    marker.addListener('click', () => {
+                        infoWindow.open(map, marker);
+                    });
+
+                    markers.push(marker);
+                    bounds.extend(location);
+                    
+                    // Fit map to show all markers
+                    if (markers.length === marketsData.length) {
+                        map.fitBounds(bounds);
+                    }
+                }
+            });
+        });
+    }
+
+    function clearAllMarkets() {
+        if (confirm('Are you sure you want to clear all markets data? This action cannot be undone.')) {
+            fetch(apiUrl('clear-markets'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('All markets data cleared successfully!');
+                    location.reload();
+                } else {
+                    alert('Error clearing markets data: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error clearing markets data');
+            });
+        }
+    }
+
+    function exportMarketsToCSV() {
+        const marketsData = {{ rows|tojson }};
+        
+        if (!marketsData || marketsData.length === 0) {
+            alert('No markets data to export');
+            return;
+        }
+        
+        // Convert to CSV format
+        const headers = ['City', 'State', 'Zip Codes'];
+        const csvContent = [
+            headers.join(','),
+            ...marketsData.map(row => [
+                `"${row.City || ''}"`,
+                `"${row.State || ''}"`,
+                `"${row['Zip Codes'] || ''}"`
+            ].join(','))
+        ].join('\n');
+        
+        // Download CSV
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'markets_data.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+</script>
+{% endblock %}
+{% endblock %}

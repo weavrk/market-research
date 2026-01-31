@@ -1,0 +1,719 @@
+{% extends "base.html" %}
+
+{% block title %}Analyze{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Analyze</h5>
+            <form method="POST" class="d-inline">
+                <button type="submit" class="btn btn-dark">
+                    <i class="fas fa-play"></i> Run Analysis
+                </button>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="form-text">Compares Retailer Database locations against Markets by ZIP.</div>
+        </div>
+    </div>
+
+    {% if results %}
+    <!-- Chart Visualization -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Top 30 Cities Analysis</h6>
+        </div>
+        <div class="card-body">
+            <div style="height: 400px;">
+                <canvas id="citiesChart"></canvas>
+            </div>
+            <div class="mt-3">
+                <div class="row justify-content-center">
+                    <div class="col-auto">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-2" style="width: 20px; height: 20px; background-color: #00FFFF; border: 1px solid #000;"></div>
+                            <span>Unlaunched Markets</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-2" style="width: 20px; height: 20px; background-color: #FFFF00; border: 1px solid #000;"></div>
+                            <span>Launched Markets</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-2" style="width: 20px; height: 20px; background-color: #00FF00; border: 1px solid #000;"></div>
+                            <span>Launched with High Growth Potential</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Visualization -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-map"></i> Top Expansion Locations Map</h6>
+        </div>
+        <div class="card-body">
+            <div id="map" style="height: 500px; width: 100%; border-radius: 8px;"></div>
+            <div class="mt-3">
+                <div class="row justify-content-center">
+                    <div class="col-auto">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-2" style="width: 20px; height: 20px; background-color: #00FFFF; border: 1px solid #000; border-radius: 50%;"></div>
+                            <span>Unlaunched Markets</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-2" style="width: 20px; height: 20px; background-color: #FFFF00; border: 1px solid #000; border-radius: 50%;"></div>
+                            <span>Launched Markets</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-2" style="width: 20px; height: 20px; background-color: #00FF00; border: 1px solid #000; border-radius: 50%;"></div>
+                            <span>Launched with High Growth Potential</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="fas fa-list"></i> Analysis Results ({{ results|length }} cities)</h6>
+            <button class="btn btn-outline-dark btn-sm" onclick="exportAnalysisToCSV()">
+                <i class="fas fa-download"></i> Export CSV
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="sortable" data-column="total_stores">
+                                Total Potential Stores <i class="fas fa-sort"></i>
+                            </th>
+                            <th>List of Retailers</th>
+                            <th class="sortable" data-column="city">
+                                City <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-column="state">
+                                State <i class="fas fa-sort"></i>
+                            </th>
+                            <th class="sortable" data-column="reflex_market">
+                                Reflex Market <i class="fas fa-sort"></i>
+                            </th>
+                            <th>Prioritized Zip Codes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in results %}
+                        <tr class="clickable-row" data-city="{{ r['City'] }}" data-state="{{ r['State'] }}" data-zip-codes="{{ r['Prioritized Zip Codes'] }}" data-retailers="{{ r['Retailers'] }}" style="cursor: pointer;">
+                            <td><strong>{{ r['Total Stores'] }}</strong></td>
+                            <td>{{ r['Retailers'] }}</td>
+                            <td>{{ r['City'] }}</td>
+                            <td>{{ r['State'] }}</td>
+                            <td class="text-center">
+                                {% if r['Is Reflex Market'] %}
+                                    <i class="fas fa-check-circle text-success" title="Live Market"></i>
+                                {% else %}
+                                    <i class="fas fa-times-circle text-danger" title="Not Live Market"></i>
+                                {% endif %}
+                            </td>
+                            <td>{{ r['Prioritized Zip Codes'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Store Details Modal -->
+<div class="modal fade" id="storeDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Store Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="storeDetailsContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Google Maps JavaScript API -->
+<script>
+    // Check if Google Maps API is already loaded
+    if (typeof google === 'undefined' || !google.maps) {
+        document.write('<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ api_key }}&libraries=geometry"><\/script>');
+    }
+</script>
+
+<script>
+    // Prevent redeclaration if script runs multiple times
+    if (typeof analysisResults === 'undefined') {
+        var analysisResults = {{ results|tojson }};
+    }
+    const apiKey = "{{ api_key }}";
+    let map;
+    let markers = [];
+
+    // Initialize chart
+    function initChart() {
+        // Prevent multiple initializations
+        if (document.getElementById('citiesChart').chart) {
+            console.log('Chart already initialized, skipping');
+            return;
+        }
+        
+        if (!analysisResults || analysisResults.length === 0) {
+            return;
+        }
+
+        // Get top 30 cities
+        const top30Cities = analysisResults.slice(0, 30);
+        
+        // Calculate threshold for "high growth potential" (top 25% of launched markets)
+        const launchedMarkets = top30Cities.filter(city => city['Is Reflex Market']);
+        const launchedStoreCounts = launchedMarkets.map(city => city['Total Stores']).sort((a, b) => b - a);
+        const highGrowthThreshold = launchedStoreCounts.length > 0 ? 
+            launchedStoreCounts[Math.floor(launchedStoreCounts.length * 0.25)] : 0;
+
+        // Prepare data for chart
+        const labels = top30Cities.map(city => `${city.City}, ${city.State}`);
+        const data = top30Cities.map(city => city['Total Stores']);
+        const backgroundColors = top30Cities.map(city => {
+            if (!city['Is Reflex Market']) {
+                return '#00FFFF'; // Cyan for unlaunched
+            } else if (city['Total Stores'] >= highGrowthThreshold) {
+                return '#00FF00'; // Green for launched with high growth potential
+            } else {
+                return '#FFFF00'; // Yellow for launched
+            }
+        });
+
+        const ctx = document.getElementById('citiesChart').getContext('2d');
+        
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Total Stores',
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderColor: '#000000',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Top 30 Cities by Store Count'
+                    },
+                    legend: {
+                        display: false // We have our custom legend below
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Number of Stores'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Cities'
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Check ZIP cache status on page load
+    let pageInitialized = false;
+    document.addEventListener('DOMContentLoaded', function() {
+        if (pageInitialized) {
+            console.log('Page already initialized, skipping');
+            return;
+        }
+        pageInitialized = true;
+        fetch(apiUrl('api/zip-cache'))
+            .then(response => response.json())
+            .then(data => {
+                const formText = document.querySelector('.form-text');
+                if (data.has_data) {
+                    formText.innerHTML = `Compares Retailer Database locations against ${data.cached_entries} cached List Market Zip Codes entries.`;
+                    formText.className = 'form-text mt-2 text-success';
+                } else {
+                    formText.innerHTML = 'No List Market Zip Codes data cached. Please upload a CSV file in the Live Markets section first.';
+                    formText.className = 'form-text mt-2 text-warning';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking ZIP cache:', error);
+            });
+        
+        // Add click event listener to the Run Analysis button for debugging
+        const runAnalysisBtn = document.querySelector('button[type="submit"]');
+        if (runAnalysisBtn) {
+            runAnalysisBtn.addEventListener('click', function(e) {
+                console.log('Run Analysis button clicked');
+                // Let the form submit normally
+            });
+        }
+        
+        // Add sorting functionality
+        let currentSort = { column: null, direction: 'asc' };
+        
+        function sortTable(column) {
+            const tbody = document.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            // Determine sort direction
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.direction = 'asc';
+            }
+            currentSort.column = column;
+            
+            // Sort rows
+            rows.sort((a, b) => {
+                let aValue, bValue;
+                
+                if (column === 'total_stores') {
+                    aValue = parseInt(a.cells[0].textContent.trim()) || 0;
+                    bValue = parseInt(b.cells[0].textContent.trim()) || 0;
+                } else if (column === 'city') {
+                    aValue = a.cells[2].textContent.trim().toLowerCase();
+                    bValue = b.cells[2].textContent.trim().toLowerCase();
+                } else if (column === 'state') {
+                    aValue = a.cells[3].textContent.trim().toLowerCase();
+                    bValue = b.cells[3].textContent.trim().toLowerCase();
+                } else if (column === 'reflex_market') {
+                    // Sort by presence of check icon (true/false)
+                    aValue = a.cells[4].querySelector('.fa-check-circle') ? 1 : 0;
+                    bValue = b.cells[4].querySelector('.fa-check-circle') ? 1 : 0;
+                }
+                
+                if (currentSort.direction === 'asc') {
+                    return aValue > bValue ? 1 : -1;
+                } else {
+                    return aValue < bValue ? 1 : -1;
+                }
+            });
+            
+            // Clear tbody and re-append sorted rows
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+            
+            // Update sort icons
+            updateSortIcons();
+        }
+        
+        function updateSortIcons() {
+            // Reset all sort icons
+            document.querySelectorAll('.sortable i').forEach(icon => {
+                icon.className = 'fas fa-sort';
+            });
+            
+            // Update current sort icon
+            if (currentSort.column) {
+                const currentHeader = document.querySelector(`[data-column="${currentSort.column}"] i`);
+                if (currentHeader) {
+                    currentHeader.className = currentSort.direction === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+                }
+            }
+        }
+        
+        // Add click event listeners to sortable headers
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.style.cursor = 'pointer';
+            header.addEventListener('click', function() {
+                const column = this.getAttribute('data-column');
+                sortTable(column);
+            });
+        });
+        
+        // Add click event listeners to table rows
+        document.querySelectorAll('.clickable-row').forEach(row => {
+            row.addEventListener('click', function(e) {
+                // Don't trigger if clicking on sortable headers
+                if (e.target.closest('.sortable')) {
+                    return;
+                }
+                
+                const city = this.getAttribute('data-city');
+                const state = this.getAttribute('data-state');
+                const zipCodes = this.getAttribute('data-zip-codes');
+                const retailers = this.getAttribute('data-retailers');
+                
+                showStoreDetails(city, state, zipCodes, retailers);
+            });
+        });
+        
+        // Initialize chart
+        initChart();
+        
+                // Initialize map when Google Maps is loaded
+                function waitForGoogleMaps() {
+                    if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
+                        console.log('Google Maps API loaded, initializing map');
+                        initMap();
+                    } else {
+                        console.log('Waiting for Google Maps API to load...');
+                        setTimeout(waitForGoogleMaps, 100);
+                    }
+                }
+                
+                waitForGoogleMaps();
+    });
+    
+    function showStoreDetails(city, state, zipCodes, retailers) {
+        // Set modal title
+        document.getElementById('modalTitle').textContent = `Store Details - ${city}, ${state}`;
+        
+        // Show loading content
+        document.getElementById('storeDetailsContent').innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading store details...</p>
+            </div>
+        `;
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('storeDetailsModal'));
+        modal.show();
+        
+        // Fetch store details from server
+        fetch(apiUrl('api/store-details'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                city: city,
+                state: state,
+                zip_codes: zipCodes,
+                retailers: retailers
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayStoreDetails(data.stores);
+            } else {
+                document.getElementById('storeDetailsContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Error loading store details: ${data.error}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching store details:', error);
+            document.getElementById('storeDetailsContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i> Error loading store details. Please try again.
+                </div>
+            `;
+        });
+    }
+    
+    function displayStoreDetails(stores) {
+        if (!stores || stores.length === 0) {
+            document.getElementById('storeDetailsContent').innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> No store details found for this location.
+                </div>
+            `;
+            return;
+        }
+        
+        let content = `
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6><i class="fas fa-store"></i> Found ${stores.length} stores</h6>
+                </div>
+            </div>
+            <div class="row">
+        `;
+        
+        stores.forEach((store, index) => {
+            const address = store.formatted_address || store.address || 'Address not available';
+            const phone = store.phone_number || 'Phone not available';
+            const rating = store.rating ? `${store.rating}/5` : 'No rating';
+            const website = store.website ? `<a href="${store.website}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-external-link-alt"></i> Website</a>` : '';
+            
+            // Create Google Maps link
+            const mapsLink = `https://www.google.com/maps?q=${encodeURIComponent(address)}`;
+            
+            content += `
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="fas fa-building"></i> ${store.name || 'Unknown Store'}
+                            </h6>
+                            <p class="card-text">
+                                <strong>Address:</strong><br>
+                                <small class="text-muted">${address}</small>
+                            </p>
+                            <p class="card-text">
+                                <strong>Phone:</strong> ${phone}<br>
+                                <strong>Rating:</strong> ${rating}
+                            </p>
+                            <div class="d-grid gap-2">
+                                <a href="${mapsLink}" target="_blank" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-map-marker-alt"></i> View on Google Maps
+                                </a>
+                                ${website}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        content += `
+            </div>
+        `;
+        
+        document.getElementById('storeDetailsContent').innerHTML = content;
+    }
+
+    function initMap() {
+        // Prevent multiple initializations
+        if (map) {
+            console.log('Map already initialized, skipping');
+            return;
+        }
+        
+        console.log('Initializing analysis map with', analysisResults ? analysisResults.length : 0, 'results');
+        
+        if (!analysisResults || analysisResults.length === 0) {
+            console.log('No analysis results to display on map');
+            return;
+        }
+
+        // Calculate center of all cities or use default US center
+        const bounds = new google.maps.LatLngBounds();
+        let centerLat = 39.8283; // Default US center
+        let centerLng = -98.5795;
+        
+        // Check if map container exists
+        const mapContainer = document.getElementById('map');
+        if (!mapContainer) {
+            console.error('Map container not found');
+            return;
+        }
+        
+        // Create map
+        map = new google.maps.Map(mapContainer, {
+            zoom: 4,
+            center: { lat: centerLat, lng: centerLng },
+            mapTypeId: google.maps.MapTypeId.ROADMAP,
+            styles: [
+                {
+                    featureType: 'poi',
+                    elementType: 'labels',
+                    stylers: [{ visibility: 'off' }]
+                }
+            ]
+        });
+        
+        console.log('Map created successfully');
+
+        // Add markers for all cities, not just top 20
+        const topCities = analysisResults;
+        console.log('Processing', topCities.length, 'cities for map markers');
+        
+        // Track marker counts by type
+        let markerCounts = { cyan: 0, yellow: 0, green: 0, failed: 0 };
+        
+        // Calculate threshold for "high growth potential" (top 25% of launched markets)
+        const launchedMarkets = topCities.filter(city => city['Is Reflex Market']);
+        const launchedStoreCounts = launchedMarkets.map(city => city['Total Stores']).sort((a, b) => b - a);
+        const highGrowthThreshold = launchedStoreCounts.length > 0 ? 
+            launchedStoreCounts[Math.floor(launchedStoreCounts.length * 0.25)] : 0;
+        
+        topCities.forEach((result, index) => {
+            console.log('Processing city:', result.City, 'Is Reflex Market:', result['Is Reflex Market']);
+            
+            // Use geocoding to get coordinates for the city
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: result.City + ', USA' }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    console.log('Geocoding successful for:', result.City);
+                    const location = results[0].geometry.location;
+                    
+                    // Choose marker color based on same logic as chart
+                    let markerColor;
+                    if (!result['Is Reflex Market']) {
+                        markerColor = 'cyan'; // Cyan for unlaunched
+                        console.log('Unlaunched market:', result.City, 'Total Stores:', result['Total Stores']);
+                    } else if (result['Total Stores'] >= highGrowthThreshold) {
+                        markerColor = 'green'; // Green for launched with high growth potential
+                        console.log('High growth market:', result.City, 'Total Stores:', result['Total Stores'], 'Threshold:', highGrowthThreshold);
+                    } else {
+                        markerColor = 'yellow'; // Yellow for launched
+                        console.log('Launched market:', result.City, 'Total Stores:', result['Total Stores']);
+                    }
+                    // Use pin style for all markers, with different colors
+                    let markerIcon;
+                    if (markerColor === 'cyan') {
+                        // Use blue pin for unlaunched markets
+                        markerIcon = {
+                            url: `https://maps.google.com/mapfiles/ms/icons/blue-dot.png`,
+                            scaledSize: new google.maps.Size(30, 30)
+                        };
+                    } else {
+                        markerIcon = {
+                            url: `https://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+                            scaledSize: new google.maps.Size(30, 30)
+                        };
+                    }
+                    
+                    console.log('Creating marker for', result.City, 'with color', markerColor);
+                    
+                    const marker = new google.maps.Marker({
+                        position: location,
+                        map: map,
+                        title: result.City,
+                        icon: markerIcon,
+                        visible: true
+                    });
+                    
+                    console.log('Marker created for', result.City, 'at position:', location.lat(), location.lng());
+
+                    // Create info window content
+                    const infoWindowContent = `
+                        <div style="max-width: 300px;">
+                            <h6 style="margin: 0 0 8px 0; color: #333;">${result.City}</h6>
+                            <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">
+                                <strong>Total Stores:</strong> ${result['Total Stores']}
+                            </p>
+                            <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">
+                                <strong>Zip Codes:</strong> ${result['Prioritized Zip Codes']}
+                            </p>
+                            <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">
+                                <strong>Reflex Market:</strong> 
+                                <span style="color: ${result['Is Reflex Market'] ? 'green' : 'red'};">
+                                    ${result['Is Reflex Market'] ? '✓ Live' : '✗ Not Live'}
+                                </span>
+                            </p>
+                            <p style="margin: 0 0 4px 0; font-size: 12px; color: #888;">
+                                <strong>Retailers:</strong> ${result.Retailers}
+                            </p>
+                        </div>
+                    `;
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: infoWindowContent
+                    });
+
+                    marker.addListener('click', () => {
+                        infoWindow.open(map, marker);
+                    });
+
+                    markers.push(marker);
+                    bounds.extend(location);
+                    markerCounts[markerColor]++;
+                } else {
+                    console.error('Geocoding failed for:', result.City, 'Status:', status);
+                    markerCounts.failed++;
+                }
+            });
+        });
+
+        // Fit map to show all markers
+        setTimeout(() => {
+            if (markers.length > 0) {
+                console.log('Fitting map bounds to show', markers.length, 'markers');
+                map.fitBounds(bounds);
+                
+                // Ensure map is visible
+                const mapContainer = document.getElementById('map');
+                if (mapContainer) {
+                    mapContainer.style.display = 'block';
+                    mapContainer.style.height = '400px';
+                }
+                
+                console.log('=== MARKER SUMMARY ===');
+                console.log('Total markers created:', markers.length);
+                console.log('Cyan (Unlaunched):', markerCounts.cyan);
+                console.log('Yellow (Launched):', markerCounts.yellow);
+                console.log('Green (High Growth):', markerCounts.green);
+                console.log('Failed geocoding:', markerCounts.failed);
+                console.log('Map bounds:', bounds.getNorthEast().lat(), bounds.getNorthEast().lng(), bounds.getSouthWest().lat(), bounds.getSouthWest().lng());
+                console.log('=====================');
+            } else {
+                console.log('No markers were created');
+            }
+        }, 2000);
+    }
+
+    function exportAnalysisToCSV() {
+        const analysisData = {{ results|tojson }};
+        
+        if (!analysisData || analysisData.length === 0) {
+            alert('No analysis data to export');
+            return;
+        }
+        
+        // Convert to CSV format
+        const headers = ['Total Potential Stores', 'List of Retailers', 'City', 'State', 'Reflex Market', 'Prioritized Zip Codes'];
+        const csvContent = [
+            headers.join(','),
+            ...analysisData.map(row => [
+                `"${row['Total Stores'] || ''}"`,
+                `"${row['Retailers'] || ''}"`,
+                `"${row['City'] || ''}"`,
+                `"${row['State'] || ''}"`,
+                `"${row['Is Reflex Market'] ? 'Live' : 'Not Live'}"`,
+                `"${row['Prioritized Zip Codes'] || ''}"`
+            ].join(','))
+        ].join('\n');
+        
+        // Download CSV
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'analysis_results.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+</script>
+{% endblock %}
+{% endblock %}

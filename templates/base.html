@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Market Expansion{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 0;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: none;
+            border-radius: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        }
+        .alert {
+            border-radius: 10px;
+        }
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .badge {
+            font-size: 0.8em;
+        }
+        .loading {
+            display: none;
+        }
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+        /* Top tabs styling */
+        .top-tabs .nav-link {
+            color: rgba(255, 255, 255, 0.85);
+            background: transparent;
+            border-radius: 0; /* rectangle, not pill */
+            padding: 0.35rem 0.75rem 0.2rem 0.75rem;
+            margin-right: 0.25rem;
+            border-bottom: 2px solid transparent;
+        }
+        .top-tabs .nav-link:hover { color: #ffffff; }
+        .top-tabs .nav-link.active {
+            background: transparent;
+            color: #ffffff;
+            border-bottom: 2px solid #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                Market Expansion
+            </a>
+            <div class="d-flex align-items-center ms-auto">
+                <ul class="navbar-nav me-2 top-tabs nav-pills">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'index' or request.endpoint == 'search_stores' %}active{% endif %}" href="{{ url_for('index') }}">
+                            <i class="fas fa-search"></i> Search Retailer
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'retailer_database' %}active{% endif %}" href="{{ url_for('retailer_database') }}">
+                            <i class="fas fa-database"></i> Retailers List
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'markets' %}active{% endif %}" href="{{ url_for('markets') }}">
+                            <i class="fas fa-mail-bulk"></i> Live Markets
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'analyze' %}active{% endif %}" href="{{ url_for('analyze') }}">
+                            <i class="fas fa-chart-bar"></i> Analyze
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="https://console.cloud.google.com/billing/017DF5-773A3D-847C0E?organizationId=61770565445" target="_blank" rel="noopener noreferrer">
+                            <i class="fas fa-chart-line"></i> Usage
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="container mt-3">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Cost Calculator Modal -->
+    <div class="modal fade" id="costCalculatorModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-calculator"></i> API Cost Calculator</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-chart-line"></i> Current Pricing (2024)</h6>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Places API (Nearby Search)</span>
+                                    <span class="badge bg-primary">$0.032</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Places API (Place Details)</span>
+                                    <span class="badge bg-primary">$0.017</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Geocoding API</span>
+                                    <span class="badge bg-primary">$0.005</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Maps JavaScript API</span>
+                                    <span class="badge bg-primary">$0.007</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-calculator"></i> Cost Estimator</h6>
+                            <div class="mb-3">
+                                <label for="searchLocations" class="form-label">Number of Search Locations</label>
+                                <input type="number" class="form-control" id="searchLocations" value="50" min="1" max="100">
+                            </div>
+                            <div class="mb-3">
+                                <label for="avgStoresPerLocation" class="form-label">Avg Stores per Location</label>
+                                <input type="number" class="form-control" id="avgStoresPerLocation" value="20" min="1" max="100">
+                            </div>
+                            <button class="btn btn-primary w-100" onclick="calculateCost()">
+                                <i class="fas fa-calculator"></i> Calculate Cost
+                            </button>
+                            <div id="costResult" class="mt-3 p-3 bg-light rounded" style="display: none;">
+                                <h6>Estimated Cost:</h6>
+                                <div id="costBreakdown"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> Free Tier Information</h6>
+                                <p class="mb-0">Google provides $200 in free credits per month for new users. This typically covers thousands of API calls for small to medium usage.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Base URL helper for API calls (handles subdirectory deployment)
+        const BASE_URL = '{{ url_for("index") }}'.replace(/\/$/, '') || '';
+        
+        // Helper function to get full API URL
+        function apiUrl(path) {
+            // Remove leading slash if present
+            path = path.replace(/^\//, '');
+            return BASE_URL ? `${BASE_URL}/${path}` : `/${path}`;
+        }
+        
+        // Show loading spinner on form submission
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            if (form) {
+                form.addEventListener('submit', function() {
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    const loading = document.querySelector('.loading');
+                    if (submitBtn && loading) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Searching...';
+                        loading.style.display = 'block';
+                    }
+                });
+            }
+        });
+
+        // Load real-time billing data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBillingData();
+            // Refresh billing data every 5 minutes
+            setInterval(loadBillingData, 300000);
+        });
+
+        // Load real-time billing data
+        function loadBillingData() {
+            fetch(apiUrl('api/billing'))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading billing data:', data.error);
+                        return;
+                    }
+                    
+                    // Update navigation bar with real-time data (only if elements exist)
+                    const monthlyCostEl = document.getElementById('monthlyCost');
+                    if (monthlyCostEl) monthlyCostEl.textContent = '$' + data.monthly_total.toFixed(2);
+                    
+                    const monthlyTotalEl = document.getElementById('monthlyTotal');
+                    if (monthlyTotalEl) monthlyTotalEl.textContent = data.monthly_total.toFixed(2);
+                    
+                    const dailyTotalEl = document.getElementById('dailyTotal');
+                    if (dailyTotalEl) dailyTotalEl.textContent = data.daily_total.toFixed(2);
+                    
+                    const freeTierEl = document.getElementById('freeTierRemaining');
+                    if (freeTierEl) freeTierEl.textContent = data.free_tier_remaining.toFixed(2);
+                    
+                    // Update API usage (only if elements exist)
+                    const placesApiEl = document.getElementById('placesApiUsage');
+                    if (placesApiEl) placesApiEl.textContent = data.quota_usage.places_api_requests;
+                    
+                    const geocodingEl = document.getElementById('geocodingUsage');
+                    if (geocodingEl) geocodingEl.textContent = data.quota_usage.geocoding_requests;
+                    
+                    const mapsLoadsEl = document.getElementById('mapsLoadsUsage');
+                    if (mapsLoadsEl) mapsLoadsEl.textContent = data.quota_usage.maps_loads;
+                    
+                    // Update last updated time
+                    const lastUpdated = new Date(data.last_updated).toLocaleTimeString();
+                    console.log('Billing data updated at:', lastUpdated);
+                })
+                .catch(error => {
+                    console.error('Error fetching billing data:', error);
+                });
+        }
+
+        // Refresh billing data manually
+        function refreshBillingData() {
+            const refreshBtn = document.querySelector('[onclick="refreshBillingData()"]');
+            const originalText = refreshBtn.innerHTML;
+            refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+            
+            loadBillingData();
+            
+            setTimeout(() => {
+                refreshBtn.innerHTML = originalText;
+            }, 1000);
+        }
+
+        // Cost calculator functions
+        function showCostInfo() {
+            const modal = new bootstrap.Modal(document.getElementById('costCalculatorModal'));
+            modal.show();
+        }
+
+        function calculateCost() {
+            const locations = parseInt(document.getElementById('searchLocations').value) || 50;
+            const avgStores = parseInt(document.getElementById('avgStoresPerLocation').value) || 20;
+            
+            // Pricing (2024 rates)
+            const placesApiCost = 0.032;
+            const placeDetailsCost = 0.017;
+            
+            // Calculate costs
+            const placesApiCalls = locations;
+            const placeDetailsCalls = locations * avgStores;
+            
+            const placesApiTotal = placesApiCalls * placesApiCost;
+            const placeDetailsTotal = placeDetailsCalls * placeDetailsCost;
+            const totalCost = placesApiTotal + placeDetailsTotal;
+            
+            // Display results
+            const resultDiv = document.getElementById('costResult');
+            const breakdownDiv = document.getElementById('costBreakdown');
+            
+            breakdownDiv.innerHTML = `
+                <div class="row">
+                    <div class="col-6">
+                        <p class="mb-1"><strong>Places API Calls:</strong> ${placesApiCalls}</p>
+                        <p class="mb-1"><strong>Place Details Calls:</strong> ${placeDetailsCalls}</p>
+                    </div>
+                    <div class="col-6">
+                        <p class="mb-1"><strong>Places API Cost:</strong> $${placesApiTotal.toFixed(3)}</p>
+                        <p class="mb-1"><strong>Place Details Cost:</strong> $${placeDetailsTotal.toFixed(3)}</p>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <h5 class="text-primary"><strong>Total Estimated Cost: $${totalCost.toFixed(3)}</strong></h5>
+                    <small class="text-muted">Per search operation</small>
+                </div>
+            `;
+            
+            resultDiv.style.display = 'block';
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+

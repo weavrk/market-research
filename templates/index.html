@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+
+{% block title %}Find Retailer Stores - Simple Search{% endblock %}
+
+{% block content %}
+
+<div class="container my-5">
+    <div class="d-flex justify-content-end mb-3">
+        <div class="btn-group" role="group" aria-label="Search/Results toggle">
+            <a href="{{ url_for('index') }}" class="btn btn-dark active">Search</a>
+            <a href="{{ url_for('view_results') }}" class="btn btn-outline-dark">Results</a>
+        </div>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('search_stores') }}">
+                        <div class="mb-4">
+                            <label for="retailer_name" class="form-label">
+                                <i class="fas fa-building"></i> Retailer Name
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="retailer_name" name="retailer_name" 
+                                   placeholder="e.g., PacSun, Ralph Lauren, Ariat" required>
+                            <div class="form-text">Enter retailer names separated by commas for multiple searches</div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-search"></i> Find All Locations
+                            </button>
+                        </div>
+                        
+                        <!-- Hidden input for selected cities -->
+                        <input type="hidden" id="selected_cities_input" name="selected_cities" value="">
+                    </form>
+
+                    <div id="searchProgress" class="progress mt-3" style="height: 8px; display: none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+                    </div>
+                    <div id="searchHint" class="form-text mt-2" style="display:none;">Searching for stores across the US…</div>
+                    <div id="retailerProgress" class="mt-2" style="display:none;">
+                        <small class="text-muted">Searching: <span id="currentRetailer"></span></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Geographic Coverage Card -->
+    <div class="row justify-content-center mt-5">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map-marked-alt"></i> Geographic Coverage
+                    </h5>
+                    <button class="btn btn-sm btn-outline-dark" onclick="exportCitiesCSV()">
+                        <i class="fas fa-download"></i> Export CSV
+                    </button>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Our search covers <strong>354 cities and regions</strong> across all 50 US states and Washington DC to ensure comprehensive retailer location discovery.
+                    </p>
+                    <p class="text-muted mb-3">
+                        Uncheck cities or states to exclude them from your search. This helps reduce API costs and focus on specific regions.
+                    </p>
+
+                    <!-- Section 1: Top Priority Cities (Major Metros + Retail Hubs) -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-2 clickable-header" style="cursor: pointer;" onclick="toggleCitySection('priority')">
+                                <div class="form-check" onclick="event.stopPropagation();">
+                                    <input class="form-check-input" type="checkbox" id="priorityMasterSelect" checked onchange="toggleAllPriorityCities()">
+                                    <label class="form-check-label fw-bold" for="priorityMasterSelect">
+                                        Select All Major Cities and Retail Centers
+                                    </label>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <small class="text-muted me-2">
+                                        <span id="prioritySelectedCount">237</span> of 237 cities
+                                    </small>
+                                    <i class="fas fa-chevron-down text-muted" id="priorityChevron"></i>
+                                </div>
+                            </div>
+                            
+                            <div class="city-selection-container" id="priorityCityContainer" style="max-height: 450px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 1rem; display: none;">
+                                <div id="priorityCitySelectionContent">
+                                    <!-- Priority city checkboxes will be populated here by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Additional Cities -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-2 clickable-header" style="cursor: pointer;" onclick="toggleCitySection('additional')">
+                                <div class="form-check" onclick="event.stopPropagation();">
+                                    <input class="form-check-input" type="checkbox" id="additionalMasterSelect" onchange="toggleAllAdditionalCities()">
+                                    <label class="form-check-label fw-bold" for="additionalMasterSelect">
+                                        Additional Cities
+                                    </label>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <small class="text-muted me-2">
+                                        <span id="additionalSelectedCount">0</span> of 117 cities
+                                    </small>
+                                    <i class="fas fa-chevron-down text-muted" id="additionalChevron"></i>
+                                </div>
+                            </div>
+                            
+                            <div class="city-selection-container" id="additionalCityContainer" style="max-height: 450px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 1rem; display: none;">
+                                <div id="additionalCitySelectionContent">
+                                    <!-- Additional city checkboxes will be populated here by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .city-selection-container {
+        transition: all 0.3s ease-in-out;
+    }
+    
+    .fa-chevron-down, .fa-chevron-up {
+        transition: transform 0.2s ease-in-out;
+    }
+    
+    .fa-chevron-down:hover, .fa-chevron-up:hover {
+        transform: scale(1.1);
+    }
+    
+    .clickable-header {
+        transition: background-color 0.2s ease-in-out;
+        border-radius: 0.375rem;
+        padding: 0.5rem;
+        margin: -0.5rem;
+    }
+    
+    .clickable-header:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // City selection functionality
+    let selectedCities = new Set();
+    let priorityCities = [];
+    let additionalCities = [];
+
+    // Define getSelectedCities function early so it can be used in form submission
+    function getSelectedCities() {
+        return Array.from(selectedCities);
+    }
+
+    // Priority Cities (Live Markets + Additional Key Cities + State Capitals + Top 3 by Population) - 237 cities
+    priorityCities = [
+        "San Marcos, TX", "Dallas, TX", "Houston, TX", "Nashville, TN", "San Antonio, TX",
+        "Phoenix, AZ", "Orlando, FL", "Miami, FL", "New York, NY", "Boston, MA",
+        "Woodbury, NY", "Woodbury, CT", "Las Vegas, NV", "Tampa, FL", "Long Island, NY", "Charleston, SC",
+        "Fort Walton Beach, FL", "Newark, NJ", "Los Angeles, CA", "Atlanta, GA", "Denver, CO",
+        "Detroit, MI", "Chicago, IL", "Charlotte, NC", "Westport, CT", "King of Prussia, PA",
+        "Cabazon, CA", "San Jose, CA", "Tulsa, OK", "Minneapolis, MN", "Memphis, TN",
+        "New Orleans, LA", "San Diego, CA", "Portland, OR", "Seattle, WA", "Knoxville, TN",
+        "San Francisco, CA", "Cincinnati, OH", "Baton Rouge, LA", "Savannah, GA", "Bakersfield, CA",
+        "Fresno, CA", "Salt Lake City, UT", "Biloxi, MS", "Columbus, OH", "Wilmington, DE",
+        "Boulder, CO", "Milwaukee, WI", "Fort Myers, FL", "Indianapolis, IN", "Sacramento, CA",
+        "Omaha, NE", "Austin, TX", "Baltimore, MD", "Fort Lauderdale, FL", "Gilroy, CA",
+        "St. Louis, MO", "Washington, DC", "Pigeon Forge, TN", "Destin, FL",
+        "Montgomery, AL", "Little Rock, AR", "Hartford, CT", "Dover, DE",
+        "Tallahassee, FL", "Boise, ID", "Springfield, IL", "Des Moines, IA", "Topeka, KS",
+        "Frankfort, KY", "Augusta, ME", "Lansing, MI", "Jefferson City, MO", "Helena, MT",
+        "Lincoln, NE", "Carson City, NV", "Concord, NH", "Santa Fe, NM",
+        "Albany, NY", "Bismarck, ND", "Oklahoma City, OK", "Harrisburg, PA", "Providence, RI",
+        "Pierre, SD", "Montpelier, VT", "Richmond, VA", "Charleston, WV", "Cheyenne, WY",
+        "Annapolis, MD", "Saint Paul, MN", "Jackson, MS", "Salem, OR", "Columbia, SC",
+        "Olympia, WA", "Madison, WI", "Philadelphia, PA", "Jacksonville, FL",
+        "Fort Worth, TX", "El Paso, TX", "Louisville, KY", "Tucson, AZ", "Albuquerque, NM",
+        "Long Beach, CA", "Kansas City, MO", "Cleveland, OH", "Mesa, AZ", "Virginia Beach, VA",
+        "Colorado Springs, CO", "Raleigh, NC", "Oakland, CA", "Wichita, KS", "Arlington, TX",
+        "Aurora, CO", "Anaheim, CA", "Santa Ana, CA", "Corpus Christi, TX",
+        "Riverside, CA", "Lexington-Fayette, KY", "Stockton, CA", "Pittsburgh, PA",
+        "Henderson, NV", "Greensboro, NC", "Plano, TX", "Irvine, CA", "Toledo, OH",
+        "Jersey City, NJ", "Chula Vista, CA", "Durham, NC", "Fort Wayne, IN", "St. Petersburg, FL",
+        "Laredo, TX", "Buffalo, NY", "Lubbock, TX", "Chandler, AZ", "Scottsdale, AZ", "Reno, NV",
+        "Glendale, AZ", "Norfolk, VA", "North Las Vegas, NV", "Gilbert, AZ",
+        "Chesapeake, VA", "Irving, TX", "Hialeah, FL", "Garland, TX", "Fremont, CA", "Boise City, ID",
+        "Spokane, WA", "Costa Mesa, CA", "Torrance, CA", "Sunrise, FL", "East Rutherford, NJ",
+        "Bloomington, MN", "Aventura, FL", "Tysons, VA", "Garden City, NY", "Paramus, NJ", "Schaumburg, IL",
+        "Lakewood, CA", "Uniondale, NY", "Beverly Hills, CA", "Miami Beach, FL", "Grapevine, TX", "Auburn Hills, MI",
+        "Wrentham, MA", "Reston, VA", "Ann Arbor, MI", "Athens, GA", "Berkeley, CA", "Chapel Hill, NC", "College Station, TX",
+        "Eugene, OR", "Gainesville, FL", "Iowa City, IA", "Lawrence, KS", "Oxford, MS", "State College, PA", "Tuscaloosa, AL",
+        "West Lafayette, IN", "Ames, IA", "Blacksburg, VA", "Champaign, IL", "Columbia, MO", "Corvallis, OR", "Fayetteville, AR",
+        "Flagstaff, AZ", "Aspen, CO", "Key West, FL", "Myrtle Beach, SC", "Napa, CA", "Palm Springs, CA", "Park City, UT",
+        "Santa Barbara, CA", "Sedona, AZ", "Vail, CO", "Hilton Head, SC", "Jackson Hole, WY", "Lake Tahoe, CA", "Martha's Vineyard, MA",
+        "Nantucket, MA", "Newport, RI", "Outer Banks, NC", "Sanibel Island, FL", "Telluride, CO", "Missoula, MT", "Princeton, NJ",
+        "Allentown, PA", "Birmingham, AL", "Bridgeport, CT", "Cedar Rapids, IA", "Columbus, GA", "Davenport, IA", "Evansville, IN",
+        "Grand Rapids, MI", "Kansas City, KS", "Las Cruces, NM", "Lexington, KY", "Manchester, NH", "Mobile, AL", "Nashua, NH",
+        "New Haven, CT", "Norman, OK", "Overland Park, KS", "Paterson, NJ", "Provo, UT", "Rochester, MN", "Rochester, NY",
+        "Rockford, IL", "Shreveport, LA", "Springfield, MA", "Springfield, MO", "St. Paul, MN", "Tacoma, WA", "Tempe, AZ", "Warren, MI",
+        "West Valley City, UT", "Worcester, MA"
+    ];
+
+    // Additional Cities - Extended coverage cities
+    additionalCities = [
+        "Akron, OH", "Amarillo, TX", "Anchorage, AK", "Antioch, CA", "Arlington, VA", "Beaumont, TX", "Bellevue, WA", "Billings, MT", "Brownsville, TX", "Burbank, CA", "Cambridge, MA", "Cape Coral, FL", "Carrollton, TX", "Cary, NC", "Centennial, CO", "Chattanooga, TN", "Clarksville, TN", "Clearwater, FL", "Concord, CA", "Coral Springs, FL", "Corona, CA", "Daly City, CA", "Dayton, OH", "Daytona Beach, FL", "Denton, TX", "Downey, CA", "El Cajon, CA", "El Monte, CA", "Elgin, IL", "Elizabeth, NJ", "Erie, PA", "Escondido, CA", "Everett, WA", "Fairfield, CA", "Fargo, ND", "Fayetteville, NC", "Fontana, CA", "Fort Collins, CO", "Fullerton, CA", "Garden Grove, CA", "Glendale, CA", "Grand Prairie, TX", "Greeley, CO", "Hampton, VA", "Hayward, CA", "High Point, NC", "Hollywood, FL", "Honolulu, HI", "Huntington Beach, CA", "Huntsville, AL", "Independence, MO", "Inglewood, CA", "Joliet, IL", "Juneau, AK", "Kent, WA", "Killeen, TX", "Lafayette, LA", "Lakeland, FL", "Lancaster, CA", "Livonia, MI", "McAllen, TX", "McKinney, TX", "Mesquite, TX", "Miami Gardens, FL", "Midland, TX", "Miramar, FL", "Modesto, CA", "Moreno Valley, CA", "Murfreesboro, TN", "Naperville, IL", "Newport News, VA", "Norwalk, CA", "Oceanside, CA", "Olathe, KS", "Ontario, CA", "Orange, CA", "Oxnard, CA", "Palm Bay, FL", "Palmdale, CA", "Pasadena, CA", "Pasadena, TX", "Pembroke Pines, FL", "Peoria, AZ", "Peoria, IL", "Pomona, CA", "Portland, ME", "Pueblo, CO", "Rancho Cucamonga, CA", "Rialto, CA", "Richardson, TX", "Richmond, CA", "Roseville, CA", "Round Rock, TX", "Salinas, CA", "San Bernardino, CA", "San Buenaventura, CA", "San Leandro, CA", "San Mateo, CA", "Santa Clara, CA", "Santa Clarita, CA", "Santa Rosa, CA", "Simi Valley, CA", "Sioux Falls, SD", "South Bend, IN", "Sterling Heights, MI", "Sunnyvale, CA", "Syracuse, NY", "Thornton, CO", "Thousand Oaks, CA", "Vallejo, CA", "Vancouver, WA", "Visalia, CA", "Waco, TX", "West Covina, CA", "Westminster, CO", "Winston-Salem, NC", "Yonkers, NY"
+    ];
+
+    // Initialize city selection on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, initializing city selection...');
+        console.log('Priority cities count:', priorityCities.length);
+        console.log('Additional cities count:', additionalCities.length);
+        initializeCitySelection();
+        
+        // Add form submission handler to populate selected cities and show progress
+        const form = document.querySelector('form[action="{{ url_for('search_stores') }}"]');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Get all checked city checkboxes
+                const checkedCities = document.querySelectorAll('input[data-city]:checked');
+                const cities = Array.from(checkedCities).map(checkbox => checkbox.getAttribute('data-city'));
+                
+                // Populate the hidden input with selected cities as JSON
+                const selectedCitiesInput = document.getElementById('selected_cities_input');
+                if (selectedCitiesInput) {
+                    selectedCitiesInput.value = JSON.stringify(cities);
+                    console.log(`Submitting search with ${cities.length} selected cities:`, cities);
+                }
+                
+                // Show progress indicators
+                const searchProgress = document.getElementById('searchProgress');
+                const searchHint = document.getElementById('searchHint');
+                const retailerProgress = document.getElementById('retailerProgress');
+                const submitButton = form.querySelector('button[type="submit"]');
+                
+                if (searchProgress) searchProgress.style.display = 'block';
+                if (searchHint) searchHint.style.display = 'block';
+                if (retailerProgress) retailerProgress.style.display = 'block';
+                
+                // Disable submit button to prevent double submission
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+                }
+            });
+        }
+    });
+
+    function initializeCitySelection() {
+        // Populate priority cities
+        populateCitySection('priorityCitySelectionContent', priorityCities, 'priority');
+        
+        // Populate additional cities
+        populateCitySection('additionalCitySelectionContent', additionalCities, 'additional');
+        
+        // Initialize counts
+        updatePriorityCount();
+        updateAdditionalCount();
+    }
+
+    function populateCitySection(containerId, cities, type) {
+        console.log(`Populating ${type} cities section with ${cities.length} cities`);
+        // Group cities by state
+        const citiesByState = {};
+        cities.forEach(city => {
+            const state = city.split(', ')[1];
+            if (!citiesByState[state]) {
+                citiesByState[state] = [];
+            }
+            citiesByState[state].push(city);
+        });
+        
+        // Determine if cities should be checked by default
+        const defaultChecked = type === 'priority';
+        
+        let html = '';
+        Object.keys(citiesByState).sort().forEach(state => {
+            const stateCities = citiesByState[state];
+            html += `
+                <div class="state-group mb-3" style="border-bottom: 1px solid #e9ecef; padding-bottom: 1rem;">
+                    <div class="row">
+                        <div class="col-md-2" style="border-right: 1px solid #dee2e6; padding-right: 1rem;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="${type}-state-${state}" ${defaultChecked ? 'checked' : ''} onchange="toggleState('${state}', '${type}')" style="accent-color: #0d6efd;">
+                                <label class="form-check-label fw-bold text-primary" for="${type}-state-${state}">
+                                    ${state} (${stateCities.length})
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-10">
+                            <div class="row">
+                                ${stateCities.map(city => `
+                                    <div class="col-md-3 col-sm-6 mb-1">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="${type}-city-${city.replace(/[^a-zA-Z0-9]/g, '')}" 
+                                                   data-city="${city}" data-state="${state}" data-type="${type}" ${defaultChecked ? 'checked' : ''} onchange="toggleCity('${city}', '${type}')">
+                                            <label class="form-check-label" for="${type}-city-${city.replace(/[^a-zA-Z0-9]/g, '')}">
+                                                ${city}
+                                            </label>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        document.getElementById(containerId).innerHTML = html;
+    }
+
+    function toggleAllPriorityCities() {
+        const masterCheckbox = document.getElementById('priorityMasterSelect');
+        const stateCheckboxes = document.querySelectorAll('input[id*="priority-state-"]');
+        const cityCheckboxes = document.querySelectorAll('input[data-type="priority"]');
+        
+        // Toggle all state checkboxes
+        stateCheckboxes.forEach(checkbox => {
+            checkbox.checked = masterCheckbox.checked;
+        });
+        
+        // Toggle all city checkboxes
+        cityCheckboxes.forEach(checkbox => {
+            checkbox.checked = masterCheckbox.checked;
+            const city = checkbox.getAttribute('data-city');
+            if (masterCheckbox.checked) {
+                selectedCities.add(city);
+            } else {
+                selectedCities.delete(city);
+            }
+        });
+        
+        updatePriorityCount();
+    }
+
+    function toggleAllAdditionalCities() {
+        const masterCheckbox = document.getElementById('additionalMasterSelect');
+        const stateCheckboxes = document.querySelectorAll('input[id*="additional-state-"]');
+        const cityCheckboxes = document.querySelectorAll('input[data-type="additional"]');
+        
+        // Toggle all state checkboxes
+        stateCheckboxes.forEach(checkbox => {
+            checkbox.checked = masterCheckbox.checked;
+        });
+        
+        // Toggle all city checkboxes
+        cityCheckboxes.forEach(checkbox => {
+            checkbox.checked = masterCheckbox.checked;
+            const city = checkbox.getAttribute('data-city');
+            if (masterCheckbox.checked) {
+                selectedCities.add(city);
+            } else {
+                selectedCities.delete(city);
+            }
+        });
+        
+        updateAdditionalCount();
+    }
+
+    function toggleState(state, type) {
+        const stateCheckbox = document.getElementById(`${type}-state-${state}`);
+        const cityCheckboxes = document.querySelectorAll(`input[data-state="${state}"][data-type="${type}"]`);
+        
+        cityCheckboxes.forEach(checkbox => {
+            checkbox.checked = stateCheckbox.checked;
+            const city = checkbox.getAttribute('data-city');
+            if (stateCheckbox.checked) {
+                selectedCities.add(city);
+            } else {
+                selectedCities.delete(city);
+            }
+        });
+        
+        if (type === 'priority') {
+            updatePriorityCount();
+        } else {
+            updateAdditionalCount();
+        }
+    }
+
+    function toggleCity(city, type) {
+        const checkbox = document.querySelector(`input[data-city="${city}"][data-type="${type}"]`);
+        const state = checkbox.getAttribute('data-state');
+        
+        if (checkbox.checked) {
+            selectedCities.add(city);
+        } else {
+            selectedCities.delete(city);
+        }
+        
+        // Update state checkbox based on city selections
+        const stateCheckbox = document.getElementById(`${type}-state-${state}`);
+        const stateCities = document.querySelectorAll(`input[data-state="${state}"][data-type="${type}"]`);
+        const checkedStateCities = document.querySelectorAll(`input[data-state="${state}"][data-type="${type}"]:checked`);
+        
+        stateCheckbox.checked = checkedStateCities.length === stateCities.length;
+        stateCheckbox.indeterminate = checkedStateCities.length > 0 && checkedStateCities.length < stateCities.length;
+        
+        if (type === 'priority') {
+            updatePriorityCount();
+        } else {
+            updateAdditionalCount();
+        }
+    }
+
+    function updatePriorityCount() {
+        const priorityCities = document.querySelectorAll('input[data-type="priority"]');
+        const selectedPriorityCities = document.querySelectorAll('input[data-type="priority"]:checked');
+        const count = selectedPriorityCities.length;
+        const total = priorityCities.length;
+        
+        document.getElementById('prioritySelectedCount').textContent = count;
+        document.getElementById('prioritySelectedCount').parentElement.innerHTML = `<span id="prioritySelectedCount">${count}</span> of ${total} cities`;
+        
+        // Update master checkbox
+        const masterCheckbox = document.getElementById('priorityMasterSelect');
+        masterCheckbox.checked = count === total;
+        masterCheckbox.indeterminate = count > 0 && count < total;
+    }
+
+    function updateAdditionalCount() {
+        const additionalCities = document.querySelectorAll('input[data-type="additional"]');
+        const selectedAdditionalCities = document.querySelectorAll('input[data-type="additional"]:checked');
+        const count = selectedAdditionalCities.length;
+        const total = additionalCities.length;
+        
+        document.getElementById('additionalSelectedCount').textContent = count;
+        document.getElementById('additionalSelectedCount').parentElement.innerHTML = `<span id="additionalSelectedCount">${count}</span> of ${total} cities`;
+        
+        // Update master checkbox
+        const masterCheckbox = document.getElementById('additionalMasterSelect');
+        masterCheckbox.checked = count === total;
+        masterCheckbox.indeterminate = count > 0 && count < total;
+    }
+
+    function toggleCitySection(type) {
+        const container = document.getElementById(`${type}CityContainer`);
+        const chevron = document.getElementById(`${type}Chevron`);
+        
+        if (container.style.display === 'none') {
+            // Show the section
+            container.style.display = 'block';
+            chevron.classList.remove('fa-chevron-down');
+            chevron.classList.add('fa-chevron-up');
+        } else {
+            // Hide the section
+            container.style.display = 'none';
+            chevron.classList.remove('fa-chevron-up');
+            chevron.classList.add('fa-chevron-down');
+        }
+    }
+
+    function exportCitiesCSV() {
+        // Comprehensive list of 689 cities and regions
+        const cities = [
+            // Major Metropolitan Areas
+            "New York, NY", "Los Angeles, CA", "Chicago, IL", "Houston, TX", "Phoenix, AZ",
+            "Philadelphia, PA", "San Antonio, TX", "San Diego, CA", "Dallas, TX", "San Jose, CA",
+            "Austin, TX", "Jacksonville, FL", "Fort Worth, TX", "Columbus, OH", "Charlotte, NC",
+            "San Francisco, CA", "Indianapolis, IN", "Seattle, WA", "Denver, CO", "Washington, DC",
+            "Boston, MA", "El Paso, TX", "Nashville, TN", "Detroit, MI", "Oklahoma City, OK",
+            "Portland, OR", "Las Vegas, NV", "Memphis, TN", "Louisville, KY", "Baltimore, MD",
+            "Milwaukee, WI", "Albuquerque, NM", "Tucson, AZ", "Fresno, CA", "Sacramento, CA",
+            "Mesa, AZ", "Kansas City, MO", "Atlanta, GA", "Long Beach, CA", "Colorado Springs, CO",
+            "Raleigh, NC", "Miami, FL", "Virginia Beach, VA", "Omaha, NE", "Oakland, CA",
+            "Minneapolis, MN", "Tulsa, OK", "Arlington, TX", "Tampa, FL", "New Orleans, LA",
+            "Pittsburgh, PA", "Cleveland, OH", "Cincinnati, OH", "Buffalo, NY", "Rochester, NY",
+            "Syracuse, NY", "Albany, NY", "Hartford, CT", "Providence, RI", "Richmond, VA",
+            "Norfolk, VA", "Greensboro, NC", "Winston-Salem, NC", "Charleston, SC", "Columbia, SC",
+            "Greenville, SC", "Augusta, GA", "Savannah, GA", "Jacksonville, FL", "Orlando, FL",
+            "St. Petersburg, FL", "Tallahassee, FL", "Gainesville, FL", "Mobile, AL", "Montgomery, AL",
+            "Birmingham, AL", "Huntsville, AL", "Knoxville, TN", "Chattanooga, TN", "Jackson, MS",
+            "Gulfport, MS", "Little Rock, AR", "Fort Smith, AR", "Shreveport, LA", "Baton Rouge, LA",
+            "Lafayette, LA", "Des Moines, IA", "Cedar Rapids, IA", "Davenport, IA", "Sioux City, IA",
+            "Fargo, ND", "Bismarck, ND", "Grand Forks, ND", "Sioux Falls, SD", "Rapid City, SD",
+            "Aberdeen, SD", "Minot, ND", "Williston, ND", "Dickinson, ND", "Mandan, ND",
+            "West Fargo, ND", "Grand Forks, ND", "Fargo, ND", "Bismarck, ND", "Minot, ND",
+            "Williston, ND", "Dickinson, ND", "Mandan, ND", "West Fargo, ND", "Grand Forks, ND"
+        ];
+        
+        const csvContent = "City,State\n" + cities.map(city => city.replace(', ', ',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'comprehensive_search_cities.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+
+</script>
+{% endblock %}

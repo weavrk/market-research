@@ -1,0 +1,652 @@
+{% extends "base.html" %}
+
+{% block title %}Retailer Database{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title"><i class="fas fa-database"></i> Retailer Database</h1>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <!-- CSV Upload Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-upload"></i> Bulk CSV Upload</h5>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="clearAllUploads()">
+                        <i class="fas fa-times"></i> Clear Selection
+                    </button>
+                </div>
+                <div class="card-body">
+                    <form id="bulkUploadForm" method="POST" enctype="multipart/form-data" action="{{ url_for('bulk_upload_retailers') }}">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-8">
+                                <label for="csv_files" class="form-label">Select Multiple CSV Files</label>
+                                <input type="file" class="form-control" id="csv_files" name="csv_files" accept=".csv" multiple required>
+                                <div class="form-text">Select multiple CSV files to upload. Each file will be processed as a separate retailer list.</div>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <button type="submit" class="btn btn-dark">
+                                    <i class="fas fa-upload"></i> Upload
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="uploadProgress" class="progress mt-3" style="height: 8px; display: none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+                    </div>
+                    <div id="uploadHint" class="form-text mt-2" style="display:none;">Processing CSV files...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Visualization -->
+    {% if retailer_data %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-map"></i> All Retailer Locations Map</h5>
+                </div>
+                <div class="card-body">
+                    <div id="retailerMap" style="height: 500px; width: 100%; border-radius: 8px;"></div>
+                    <div id="mapLegend" class="mt-3" style="display: none;">
+                        <div id="legendItems" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if retailer_data %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-database"></i> Retailer Database</h4>
+                    <button class="btn btn-sm btn-outline-dark" onclick="exportAllToCSV()">
+                        <i class="fas fa-download"></i> Export CSV
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Retailer Name</th>
+                                    <th>Total Stores</th>
+                                    <th>Total Cities</th>
+                                    <th>Date Added</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for retailer in retailer_data %}
+                                    {% if not retailer.get('removed', False) %}
+                                <tr class="retailer-row" data-retailer-index="{{ loop.index0 }}" data-enabled="true">
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-secondary me-2" onclick="toggleRetailerStatus('{{ loop.index0 }}')">
+                                            <i class="fas fa-times status-icon" id="status-icon-{{ loop.index0 }}" style="color: #dc3545;"></i>
+                                        </button>
+                                        <strong class="retailer-name">{{ retailer.retailer_name }}</strong>
+                                    </td>
+                                    <td><span class="badge bg-primary store-count">{{ retailer.total_stores }}</span></td>
+                                    <td><span class="badge bg-info city-count">{{ retailer.total_cities or 0 }}</span></td>
+                                    <td class="date-added">{{ retailer.date_added[:10] }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewRetailerDetails('{{ loop.index0 }}')">
+                                            <i class="fas fa-external-link-alt"></i> View Data
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-dark me-1" onclick="exportRetailerToCSV('{{ loop.index0 }}')">
+                                            <i class="fas fa-download"></i> Export CSV
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteRetailer('{{ loop.index0 }}')">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                                    {% else %}
+                                <tr class="retailer-row" data-retailer-index="{{ loop.index0 }}" data-enabled="false" style="opacity: 0.5; background-color: #f8f9fa;">
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-secondary me-2" onclick="toggleRetailerStatus('{{ loop.index0 }}')">
+                                            <i class="fas fa-plus status-icon" id="status-icon-{{ loop.index0 }}" style="color: #28a745;"></i>
+                                        </button>
+                                        <strong class="retailer-name">{{ retailer.retailer_name }}</strong>
+                                    </td>
+                                    <td><span class="badge bg-secondary store-count">{{ retailer.total_stores }}</span></td>
+                                    <td><span class="badge bg-secondary city-count">{{ retailer.total_cities or 0 }}</span></td>
+                                    <td class="date-added">{{ retailer.date_added[:10] }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" disabled style="opacity: 0.5;">
+                                            <i class="fas fa-external-link-alt"></i> View Data
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-dark me-1" disabled style="opacity: 0.5;">
+                                            <i class="fas fa-download"></i> Export CSV
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteRetailer('{{ loop.index0 }}')">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-database"></i> Retailer Database</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> No retailers saved yet. Use the "Save to Database" button on search results to add retailers.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% block scripts %}
+<!-- Google Maps JavaScript API -->
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ api_key }}&callback=initRetailerMap"></script>
+
+<script>
+    const retailerData = JSON.parse('{{ retailer_data|tojson|e }}');
+    const apiKey = "{{ api_key }}";
+    let retailerMap;
+    let retailerMarkers = [];
+
+    // Handle bulk upload form submission
+    document.getElementById('bulkUploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const fileInput = document.getElementById('csv_files');
+        const files = fileInput.files;
+        
+        if (files.length === 0) {
+            alert('Please select at least one CSV file to upload.');
+            return;
+        }
+        
+        // Show progress
+        document.getElementById('uploadProgress').style.display = 'block';
+        document.getElementById('uploadHint').style.display = 'block';
+        
+        // Create FormData and append all files
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('csv_files', files[i]);
+        }
+        
+        // Upload files
+        fetch('{{ url_for("bulk_upload_retailers") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                const successCount = data.uploaded_files.filter(f => f.status === 'success').length;
+                const errorCount = data.uploaded_files.filter(f => f.status === 'error').length;
+                
+                let message = `Successfully uploaded ${successCount} CSV file(s).`;
+                if (errorCount > 0) {
+                    message += ` ${errorCount} file(s) had errors.`;
+                }
+                
+                alert(message);
+                
+                // Clear the file input
+                fileInput.value = '';
+                
+                // Reload the page to show the new retailers in the database
+                window.location.reload();
+            } else {
+                alert('Error uploading files: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error uploading files. Please try again.');
+        })
+        .finally(() => {
+            // Hide progress
+            document.getElementById('uploadProgress').style.display = 'none';
+            document.getElementById('uploadHint').style.display = 'none';
+        });
+    });
+
+    function clearAllUploads() {
+        if (confirm('Are you sure you want to clear the file selection?')) {
+            document.getElementById('csv_files').value = '';
+        }
+    }
+
+    function toggleRetailerStatus(index) {
+        const retailerRow = document.querySelector(`tr[data-retailer-index="${index}"]`);
+        const statusIcon = document.getElementById(`status-icon-${index}`);
+        const isInDatabase = retailerRow.getAttribute('data-enabled') === 'true';
+        
+        if (isInDatabase) {
+            // Remove from database (X button pressed)
+            removeFromDatabase(index);
+        } else {
+            // Add back to database (+ button pressed)
+            restoreToDatabase(index);
+        }
+    }
+
+    function removeFromDatabase(index) {
+        const retailerIndex = parseInt(index);
+        const retailer = retailerData[retailerIndex];
+        if (!retailer) return;
+        
+        // Send remove request to backend (no confirmation prompt)
+        fetch(apiUrl('remove-retailer'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                retailer_index: retailerIndex
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI to show removed state
+                const retailerRow = document.querySelector(`tr[data-retailer-index="${index}"]`);
+                const statusIcon = document.getElementById(`status-icon-${index}`);
+                
+                retailerRow.setAttribute('data-enabled', 'false');
+                retailerRow.style.opacity = '0.5';
+                retailerRow.style.backgroundColor = '#f8f9fa';
+                statusIcon.className = 'fas fa-plus status-icon';
+                statusIcon.style.color = '#28a745';
+                
+                // Disable action buttons except restore
+                const actionButtons = retailerRow.querySelectorAll('button:not([onclick*="toggleRetailerStatus"])');
+                actionButtons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                });
+            } else {
+                alert('Error removing retailer: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error removing retailer. Please try again.');
+        });
+    }
+
+    function restoreToDatabase(index) {
+        const retailerIndex = parseInt(index);
+        const retailer = retailerData[retailerIndex];
+        if (!retailer) return;
+        
+        // Send restore request to backend (no confirmation prompt)
+        fetch(apiUrl('restore-retailer'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                retailer_index: retailerIndex
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI to show restored state
+                const retailerRow = document.querySelector(`tr[data-retailer-index="${index}"]`);
+                const statusIcon = document.getElementById(`status-icon-${index}`);
+                
+                retailerRow.setAttribute('data-enabled', 'true');
+                retailerRow.style.opacity = '1';
+                retailerRow.style.backgroundColor = '';
+                statusIcon.className = 'fas fa-times status-icon';
+                statusIcon.style.color = '#dc3545';
+                
+                // Enable action buttons
+                const actionButtons = retailerRow.querySelectorAll('button:not([onclick*="toggleRetailerStatus"])');
+                actionButtons.forEach(btn => {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                });
+            } else {
+                alert('Error restoring retailer: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error restoring retailer. Please try again.');
+        });
+    }
+
+    function viewRetailerDetails(index) {
+        const retailerIndex = parseInt(index);
+        const retailer = retailerData[retailerIndex];
+        if (!retailer) return;
+        
+        // Generate CSV content and open in new tab
+        const headers = ['Store Name', 'Address', 'City', 'State', 'ZIP', 'Phone', 'Rating', 'Website'];
+        const csvContent = [
+            headers.join(','),
+            ...retailer.stores.map(store => [
+                `"${store.name || ''}"`,
+                `"${store.address || ''}"`,
+                `"${store.city || ''}"`,
+                `"${store.state || ''}"`,
+                `"${store.zip_code || ''}"`,
+                `"${store.phone_number || ''}"`,
+                `"${store.rating || ''}"`,
+                `"${store.website || ''}"`
+            ].join(','))
+        ].join('\n');
+        
+        // Create blob and open in new tab
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // Clean up the URL after a short delay
+        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    }
+
+    function exportRetailerToCSV(index) {
+        const retailerIndex = parseInt(index);
+        const retailer = retailerData[retailerIndex];
+        if (!retailer) return;
+        
+        // Convert stores to CSV format (matching preview formatting)
+        const headers = ['Store Name', 'Address', 'City', 'State', 'ZIP', 'Phone', 'Rating', 'Website'];
+        const csvContent = [
+            headers.join(','),
+            ...retailer.stores.map(store => [
+                `"${store.name || ''}"`,
+                `"${store.address || ''}"`,
+                `"${store.city || ''}"`,
+                `"${store.state || ''}"`,
+                `"${store.zip_code || ''}"`,
+                `"${store.phone_number || ''}"`,
+                `"${store.rating || ''}"`,
+                `"${store.website || ''}"`
+            ].join(','))
+        ].join('\n');
+        
+        // Download CSV
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${retailer.retailer_name}_stores.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+
+    function exportAllToCSV() {
+        if (!retailerData || retailerData.length === 0) {
+            alert('No retailers to export');
+            return;
+        }
+        
+        // Combine all stores from all retailers
+        const allStores = [];
+        retailerData.forEach(retailer => {
+            retailer.stores.forEach(store => {
+                allStores.push({
+                    ...store,
+                    retailer_name: retailer.retailer_name
+                });
+            });
+        });
+        
+        // Convert to CSV (matching preview formatting)
+        const headers = ['Retailer Name', 'Store Name', 'Address', 'City', 'State', 'ZIP', 'Phone', 'Rating', 'Website'];
+        const csvContent = [
+            headers.join(','),
+            ...allStores.map(store => [
+                `"${store.retailer_name || ''}"`,
+                `"${store.name || ''}"`,
+                `"${store.address || ''}"`,
+                `"${store.city || ''}"`,
+                `"${store.state || ''}"`,
+                `"${store.zip_code || ''}"`,
+                `"${store.phone_number || ''}"`,
+                `"${store.rating || ''}"`,
+                `"${store.website || ''}"`
+            ].join(','))
+        ].join('\n');
+        
+        // Download CSV
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'all_retailer_stores.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+
+    function deleteRetailer(index) {
+        const retailerIndex = parseInt(index);
+        const retailer = retailerData[retailerIndex];
+        if (!retailer) return;
+        
+        if (confirm(`Are you sure you want to delete "${retailer.retailer_name}" and all its ${retailer.total_stores} stores? This action cannot be undone.`)) {
+            // Send delete request to backend
+            fetch(apiUrl('delete-retailer'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    retailer_index: retailerIndex
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the row from the table
+                    const retailerRow = document.querySelector(`tr[data-retailer-index="${index}"]`);
+                    const detailsRow = document.getElementById(`details-${index}`);
+                    if (retailerRow) retailerRow.remove();
+                    if (detailsRow) detailsRow.remove();
+                    
+                    // Show success message
+                    // Retailer deleted silently
+                    
+                    // Reload the page to refresh the data
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    alert('Error deleting retailer: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting retailer. Please try again.');
+            });
+        }
+    }
+
+    // Create map legend
+    function createMapLegend(retailerGroups) {
+        const legendContainer = document.getElementById('mapLegend');
+        const legendItems = document.getElementById('legendItems');
+        
+        if (!legendContainer || !legendItems || Object.keys(retailerGroups).length === 0) {
+            return;
+        }
+
+        // Clear existing legend items
+        legendItems.innerHTML = '';
+
+        // Create legend items for each retailer
+        Object.keys(retailerGroups).forEach((retailerName) => {
+            const group = retailerGroups[retailerName];
+            const storeCount = group.stores.length;
+            
+            const legendItem = document.createElement('div');
+            legendItem.className = 'd-flex align-items-center mb-1 me-3';
+            legendItem.style.fontSize = '14px';
+            
+            legendItem.innerHTML = `
+                <img src="https://maps.google.com/mapfiles/ms/icons/${group.color}-dot.png" 
+                     style="width: 20px; height: 20px; margin-right: 8px;" 
+                     alt="${retailerName}">
+                <span class="fw-medium">${retailerName}</span>
+                <span class="text-muted ms-1">(${storeCount} ${storeCount === 1 ? 'store' : 'stores'})</span>
+            `;
+            
+            legendItems.appendChild(legendItem);
+        });
+
+        // Show the legend
+        legendContainer.style.display = 'block';
+    }
+
+    // Initialize Google Map for retailer locations
+    function initRetailerMap() {
+        console.log('Initializing retailer map...');
+        console.log('Retailer data:', retailerData);
+        
+        if (!retailerData || retailerData.length === 0) {
+            console.log('No retailer data available');
+            return;
+        }
+
+        // Calculate center of all stores or use default US center
+        const bounds = new google.maps.LatLngBounds();
+        let centerLat = 39.8283; // Default US center
+        let centerLng = -98.5795;
+        
+        // Create map
+        retailerMap = new google.maps.Map(document.getElementById('retailerMap'), {
+            zoom: 4,
+            center: { lat: centerLat, lng: centerLng },
+            mapTypeId: google.maps.MapTypeId.ROADMAP,
+            styles: [
+                {
+                    featureType: 'poi',
+                    elementType: 'labels',
+                    stylers: [{ visibility: 'off' }]
+                }
+            ]
+        });
+
+        // Define colors for different retailers
+        const colors = [
+            'red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'gray', 'black',
+            'lightblue', 'lightgreen', 'lightyellow', 'lightcoral', 'lightpink', 'lightgray'
+        ];
+
+        // Group stores by retailer
+        const retailerGroups = {};
+        let totalStores = 0;
+        let storesWithCoords = 0;
+        
+        retailerData.forEach((retailer, index) => {
+            if (!retailer.removed && retailer.stores && retailer.stores.length > 0) {
+                console.log(`Processing retailer: ${retailer.retailer_name} with ${retailer.stores.length} stores`);
+                retailerGroups[retailer.retailer_name] = {
+                    stores: retailer.stores,
+                    color: colors[index % colors.length],
+                    index: index
+                };
+                totalStores += retailer.stores.length;
+            }
+        });
+
+        console.log(`Found ${Object.keys(retailerGroups).length} retailers with ${totalStores} total stores`);
+
+        // Add markers for each retailer group
+        Object.keys(retailerGroups).forEach((retailerName, groupIndex) => {
+            const group = retailerGroups[retailerName];
+            const markerIcon = `https://maps.google.com/mapfiles/ms/icons/${group.color}-dot.png`;
+            
+            group.stores.forEach((store, storeIndex) => {
+                if (store.latitude && store.longitude) {
+                    storesWithCoords++;
+                    const marker = new google.maps.Marker({
+                        position: { lat: parseFloat(store.latitude), lng: parseFloat(store.longitude) },
+                        map: retailerMap,
+                        title: `${retailerName}: ${store.name || 'Store'}`,
+                        icon: {
+                            url: markerIcon,
+                            scaledSize: new google.maps.Size(25, 25)
+                        }
+                    });
+
+                    // Create info window content
+                    const infoWindowContent = `
+                        <div style="max-width: 300px;">
+                            <h6 style="margin: 0 0 8px 0; color: #333;">${retailerName}</h6>
+                            <p style="margin: 0 0 4px 0;"><strong>Store:</strong> ${store.name || 'N/A'}</p>
+                            <p style="margin: 0 0 4px 0;"><strong>Address:</strong> ${store.formatted_address || store.address || 'N/A'}</p>
+                            ${store.phone_number ? `<p style="margin: 0 0 4px 0;"><strong>Phone:</strong> ${store.phone_number}</p>` : ''}
+                            ${store.rating ? `<p style="margin: 0 0 4px 0;"><strong>Rating:</strong> ${store.rating}/5 (${store.user_ratings_total || 0} reviews)</p>` : ''}
+                            <div style="margin-top: 8px;">
+                                <a href="https://www.google.com/maps?q=${store.latitude},${store.longitude}" target="_blank" 
+                                   style="background: #007bff; color: white; padding: 4px 8px; text-decoration: none; border-radius: 4px; font-size: 12px;">
+                                    View on Google Maps
+                                </a>
+                            </div>
+                        </div>
+                    `;
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: infoWindowContent
+                    });
+
+                    marker.addListener('click', () => {
+                        infoWindow.open(retailerMap, marker);
+                    });
+
+                    retailerMarkers.push(marker);
+                    bounds.extend(marker.getPosition());
+                } else {
+                    console.log(`Store missing coordinates: ${store.name || 'Unknown'} - lat: ${store.latitude}, lng: ${store.longitude}`);
+                }
+            });
+        });
+
+        console.log(`Added ${retailerMarkers.length} markers (${storesWithCoords} stores with coordinates)`);
+
+        // Create legend
+        createMapLegend(retailerGroups);
+
+        // Fit map to show all markers (only if there are markers)
+        if (retailerMarkers.length > 0) {
+            retailerMap.fitBounds(bounds);
+            
+            // Add a small padding to the bounds
+            const listener = google.maps.event.addListener(retailerMap, "idle", function() {
+                if (retailerMap.getZoom() > 15) retailerMap.setZoom(15);
+                google.maps.event.removeListener(listener);
+            });
+        } else {
+            console.log('No markers were added to the map');
+        }
+    }
+</script>
+{% endblock %}
+{% endblock %}
