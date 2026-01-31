@@ -87,16 +87,23 @@ def upload_dir_ftp(ftp, local_dir, remote_dir):
             if any(pattern in str(item) for pattern in EXCLUDE_PATTERNS):
                 continue
             
-            # Calculate relative path
-            rel_path = item.relative_to(local_path.parent)
+            # Calculate relative path from the local_dir (not parent)
+            rel_path = item.relative_to(local_path)
             remote_file_path = f"{remote_path}/{rel_path.as_posix()}"
             
             # Create subdirectories if needed
             remote_file_dir = '/'.join(remote_file_path.split('/')[:-1])
-            try:
-                ftp.mkd(remote_file_dir)
-            except:
-                pass
+            if remote_file_dir:
+                # Create directory structure recursively
+                dir_parts = remote_file_dir.split('/')
+                current_path = ''
+                for part in dir_parts:
+                    if part:
+                        current_path = f"{current_path}/{part}" if current_path else part
+                        try:
+                            ftp.mkd(current_path)
+                        except:
+                            pass  # Directory might already exist
             
             upload_file_ftp(ftp, item, remote_file_path)
 
