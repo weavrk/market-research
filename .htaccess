@@ -1,24 +1,6 @@
-# GoDaddy Python/Flask Configuration
-# Enable Python execution
-AddHandler fcgid-script .py
-Options +ExecCGI
-
-# Set directory index
-DirectoryIndex index.py index.html
-
-# Set Python path and encoding
-FcgidInitialEnv PYTHON_IO_ENCODING utf8
-
-# Route all requests to index.py
-RewriteEngine On
-RewriteBase /hrefs/market-research/
-
-# Don't rewrite if file exists
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-
-# Route to index.py
-RewriteRule ^(.*)$ index.py/$1 [QSA,L]
+# GoDaddy Python App - Minimal .htaccess
+# GoDaddy's Python App setup handles most configuration automatically
+# This file is kept minimal to avoid conflicts
 
 # Prevent access to sensitive files
 <FilesMatch "^\.">
@@ -31,9 +13,3 @@ RewriteRule ^(.*)$ index.py/$1 [QSA,L]
     Order allow,deny
     Deny from all
 </FilesMatch>
-
-# Allow access to static files
-<IfModule mod_headers.c>
-    Header set Access-Control-Allow-Origin "*"
-</IfModule>
-

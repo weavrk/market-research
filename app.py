@@ -1,23 +1,50 @@
 import os
 import json
-import pandas as pd
+import sys
+
+# Try to import dependencies with better error handling
+try:
+    import pandas as pd
+except ImportError as e:
+    print(f"Warning: pandas not available: {e}", file=sys.stderr)
+    pd = None
+
 from flask import Flask, render_template, request, jsonify, flash, redirect, url_for, session, send_from_directory
 from werkzeug.utils import secure_filename
-import googlemaps
-from dotenv import load_dotenv
-from geopy.distance import geodesic
+
+try:
+    import googlemaps
+except ImportError as e:
+    print(f"Warning: googlemaps not available: {e}", file=sys.stderr)
+    googlemaps = None
+
+try:
+    from dotenv import load_dotenv
+    # Load environment variables (silently fail if .env doesn't exist)
+    try:
+        load_dotenv()
+    except Exception:
+        pass  # Continue without .env file
+except ImportError:
+    load_dotenv = None
+
+try:
+    from geopy.distance import geodesic
+except ImportError as e:
+    print(f"Warning: geopy not available: {e}", file=sys.stderr)
+    geodesic = None
+
 import logging
 import requests
 from datetime import datetime, timedelta
 import uuid
 import re
-import pgeocode
 
-# Load environment variables (silently fail if .env doesn't exist)
 try:
-    load_dotenv()
-except Exception:
-    pass  # Continue without .env file
+    import pgeocode
+except ImportError as e:
+    print(f"Warning: pgeocode not available: {e}", file=sys.stderr)
+    pgeocode = None
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here-change-in-production')

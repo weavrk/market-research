@@ -32,7 +32,7 @@ GITHUB_BRANCH = os.getenv('GITHUB_BRANCH', 'main')
 DEPLOY_FILES = [
     'app.py',
     'index.py',  # GoDaddy WSGI entry point
-    '.htaccess',  # Apache configuration
+    # '.htaccess',  # Commented out - GoDaddy Python App doesn't need it
     'test_simple.py',  # Diagnostic test file
     'requirements.txt',
     'credentials.md',
